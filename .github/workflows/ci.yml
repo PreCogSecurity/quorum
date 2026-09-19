@@ -4,12 +4,30 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # This repository predates Go modules: it is a GOPATH-based project
+      # with vendored dependencies (vendor/vendor.json) and no go.mod/go.sum.
+      # Keep module mode off so the go toolchain resolves the workspace
+      # symlink created by build/env.sh.
+      GO111MODULE: "off"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: stable
-      - run: go test -v ./...
+          # The codebase targets the Go 1.7-1.9 era (see .travis.yml and the
+          # version check in build/ci.go). Newer toolchains fail `go vet` and
+          # compilation on this code, so pin the last version the project's
+          # own CI exercised.
+          go-version: '1.9.7'
+          # No go.mod/go.sum exists; disable the module cache to avoid the
+          # "Dependencies file is not found" cache restore failure.
+          cache: false
+      - name: Build
+        run: build/env.sh go run build/ci.go install
+      - name: Test
+        run: build/env.sh go run build/ci.go test
